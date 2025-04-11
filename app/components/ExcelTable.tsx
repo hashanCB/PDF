@@ -17,19 +17,27 @@ export default function ExcelTable({ data }: ExcelTableProps) {
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
   const [headerText, setHeaderText] = useState('ACCEPTED AS @ ANBP DN ZONE 2025');
   const [heightMultiplier, setHeightMultiplier] = useState('1.26');
+  const [editableData, setEditableData] = useState(data);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
-      // If clicking the same field, toggle order
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
     } else {
-      // If clicking a new field, set it and default to ascending
       setSortField(field);
       setSortOrder('asc');
     }
   };
 
-  const sortedData = [...data].sort((a, b) => {
+  const handleNameEdit = (advisorCode: string, newName: string) => {
+    const newData = editableData.map(row => 
+      row.advisorCode === advisorCode 
+        ? { ...row, advisorName: newName }
+        : row
+    );
+    setEditableData(newData);
+  };
+
+  const sortedData = [...editableData].sort((a, b) => {
     if (!sortField) return 0;
 
     const multiplier = sortOrder === 'asc' ? 1 : -1;
@@ -376,13 +384,18 @@ export default function ExcelTable({ data }: ExcelTableProps) {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {sortedData.map((row, index) => (
-              <tr key={index} className="hover:bg-gray-50">
+            {sortedData.map((row) => (
+              <tr key={row.advisorCode} className="hover:bg-gray-50">
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   {row.advisorCode}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {row.advisorName}
+                  <input
+                    type="text"
+                    value={row.advisorName}
+                    onChange={(e) => handleNameEdit(row.advisorCode, e.target.value)}
+                    className="w-full px-2 py-1 border border-transparent hover:border-gray-300 focus:border-purple-500 rounded focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  />
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
