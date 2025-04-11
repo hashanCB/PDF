@@ -16,7 +16,7 @@ export default function ExcelTable({ data }: ExcelTableProps) {
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
   const [headerText, setHeaderText] = useState('ACCEPTED AS @ ANBP DN ZONE 2025');
-  const [heightMultiplier, setHeightMultiplier] = useState('1.18');
+  const [heightMultiplier, setHeightMultiplier] = useState('1.26');
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -37,16 +37,88 @@ export default function ExcelTable({ data }: ExcelTableProps) {
   });
 
   const exportToExcel = () => {
-    const worksheet = XLSX.utils.json_to_sheet(sortedData);
+    const worksheet = XLSX.utils.json_to_sheet(sortedData.map((row, index) => ({
+      '#': index + 1,
+      'Advisor Code': row.advisorCode,
+      'Advisor Name': row.advisorName,
+      'Status': row.advisorStatus,
+      'No of Policies': row.noOfPolicies,
+      'Annualized New Business Premium (RS)': row.annualizedPremium
+    })));
     
-    // Set custom headers
-    XLSX.utils.sheet_add_aoa(worksheet, [
-      ['#', 'Advisor Code', 'Advisor Name', 'Status', 'No of Policies', 'Annualized New Business Premium (RS)']
-    ], { origin: 'A1' });
+    // Set column widths (approximate conversion from mm to Excel units)
+    const columnWidths = [
+      { wch: 4 },  // #
+      { wch: 12 }, // Advisor Code
+      { wch: 35 }, // Advisor Name
+      { wch: 10 }, // Status
+      { wch: 10 }, // No of Policies
+      { wch: 20 }, // Annualized Premium
+    ];
+    worksheet['!cols'] = columnWidths;
+
+    // Add styles for header row
+    const headerStyle = {
+      fill: { fgColor: { rgb: "662D91" } }, // Purple background
+      font: { color: { rgb: "FFFFFF" }, bold: true, sz: 10 }, // White, bold text
+      alignment: { horizontal: "center", vertical: "center", wrapText: true }
+    };
+
+    // Add styles for data rows
+    const redRowStyle = {
+      fill: { fgColor: { rgb: "FF0000" } },
+      font: { color: { rgb: "FFFFFF" }, sz: 9 }
+    };
+    const blueRowStyle = {
+      fill: { fgColor: { rgb: "ADD8E6" } },
+      font: { color: { rgb: "000000" }, sz: 9 }
+    };
+    const greenRowStyle = {
+      fill: { fgColor: { rgb: "90EE90" } },
+      font: { color: { rgb: "000000" }, sz: 9 }
+    };
+
+    // Get the range of cells in the worksheet
+    const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
     
+    // Apply styles to cells
+    for (let R = range.s.r; R <= range.e.r; R++) {
+      for (let C = range.s.c; C <= range.e.c; C++) {
+        const cellRef = XLSX.utils.encode_cell({ r: R, c: C });
+        if (!worksheet[cellRef]) continue;
+
+        // Initialize style object if it doesn't exist
+        if (!worksheet[cellRef].s) worksheet[cellRef].s = {};
+
+        // Apply header styles to first row
+        if (R === 0) {
+          worksheet[cellRef].s = headerStyle;
+        } else {
+          // Apply row styles based on index
+          const rowIndex = R - 1; // Subtract 1 because R starts from 0 and includes header
+          if (rowIndex < 3) {
+            worksheet[cellRef].s = redRowStyle;
+          } else if (rowIndex < 10) {
+            worksheet[cellRef].s = blueRowStyle;
+          } else {
+            worksheet[cellRef].s = greenRowStyle;
+          }
+
+          // Apply specific column alignments
+          if (C === 0 || C === 1 || C === 3 || C === 4) { // #, Advisor Code, Status, No of Policies
+            worksheet[cellRef].s.alignment = { horizontal: "center", vertical: "center" };
+          } else if (C === 5) { // Annualized Premium
+            worksheet[cellRef].s.alignment = { horizontal: "right", vertical: "center" };
+          }
+        }
+      }
+    }
+
+    // Create workbook and add the worksheet
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Active Advisors');
     
+    // Add sorting information to the filename
     const sortInfo = sortField ? `_sorted_by_${sortField}_${sortOrder}` : '';
     XLSX.writeFile(workbook, `active_advisors${sortInfo}.xlsx`);
   };
@@ -70,10 +142,10 @@ export default function ExcelTable({ data }: ExcelTableProps) {
     const columnWidths = {
       0: 7, // #
       1: 18, // Advisor Code
-      2: 70, // Advisor Name
-      3: 15, // Status
+      2: 80, // Advisor Name
+      3: 20, // Status
       4: 20, // No of Policies
-      5: 34, // Annualized Premium
+      5: 40, // Annualized Premium
     };
     const totalColumnsWidth = Object.values(columnWidths).reduce((sum, width) => sum + width, 0);
     const margins = 5; // Total margins (left + right)
@@ -119,7 +191,7 @@ export default function ExcelTable({ data }: ExcelTableProps) {
     // Add table using sortedData with custom styling
     autoTable(doc, {
       theme: 'grid',
-      head: [['#', 'Advisor Code', 'Advisor Name', 'Status', 'No of\nPolicies', 'Annualized New\nBusiness Premium (RS)']],
+      head: [['#', 'Advisor Code', 'Advisor Name', 'Status', 'No of\nPolicies', 'Annualized New\nBusiness Premium']],
       body: sortedData.map((row, index) => [
         index + 1,
         row.advisorCode,
@@ -130,7 +202,7 @@ export default function ExcelTable({ data }: ExcelTableProps) {
       ]),
       startY: titleHeight + spaceBetweenHeaderAndTable,
       styles: {
-        fontSize: 7,
+        fontSize: 8,
         cellPadding: { top: 1, right: 1, bottom: 1, left: 1 },
         fontStyle: 'bold',
         lineWidth: 0.1,
@@ -144,12 +216,21 @@ export default function ExcelTable({ data }: ExcelTableProps) {
         textColor: [255, 255, 255],
         halign: 'center',
         fontStyle: 'bold',
-        fontSize: 8,
+        fontSize: 10,
         minCellHeight: 15,
         cellPadding: { top: 3, right: 2, bottom: 3, left: 2 },
         lineWidth: 0.5,
         lineColor: [0, 0, 0],
         valign: 'middle'
+      },
+      willDrawCell: function(data) {
+        if (data.row.section === 'head') {
+          // Set the fill color for header cells
+          doc.setFillColor(102, 45, 145);
+          // Set darker border for header cells
+          doc.setDrawColor(0, 0, 0);
+          doc.setLineWidth(0.5);
+        }
       },
       didParseCell: function(data) {
         const rowIndex = data.row.index;
@@ -157,7 +238,7 @@ export default function ExcelTable({ data }: ExcelTableProps) {
         // Make header text bold and ensure header background color
         if (data.row.section === 'head') {
           data.cell.styles.fontStyle = 'bold';
-          data.cell.styles.fontSize = 8;
+          data.cell.styles.fontSize = 10;
           data.cell.styles.fillColor = [102, 45, 145];
           data.cell.styles.textColor = [255, 255, 255];
           data.cell.styles.halign = 'center';
